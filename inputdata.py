@@ -2,86 +2,36 @@ import json
 from typing import Dict, Any
 from datetime import datetime
 import os
+import pygame
 
 class InputDataManager:
     def __init__(self, data_dir='input_data'):
-        """
-        Initialize the input data manager with a specific directory for storing input data.
-        
-        Args:
-            data_dir (str): Directory to store input data files
-        """
         self.data_dir = data_dir
         os.makedirs(data_dir, exist_ok=True)
     
     def validate_input(self, input_data: Dict[str, Any]) -> Dict[str, str]:
-        """
-        Validate the input data dictionary with detailed error reporting.
-        
-        Args:
-            input_data (Dict[str, Any]): Dictionary of input parameters
-        
-        Returns:
-            Dict[str, str]: Empty dict if valid, or dict of error messages
-        """
         errors = {}
         
-        # Check for required keys
-        required_keys = ['species_count', 'environment_type', 'interaction_mode']
-        for key in required_keys:
-            if key not in input_data:
-                errors[key] = f"Missing required parameter: {key}"
-        
-        # If missing keys, return errors
-        if errors:
-            return errors
-        
-        # Validate species count
         try:
             species_count = input_data['species_count']
             if not isinstance(species_count, int):
                 errors['species_count'] = "Species count must be an integer"
-            elif species_count <= 0:
-                errors['species_count'] = "Species count must be a positive number"
+            elif species_count <= 0 or species_count > 5:
+                errors['species_count'] = "Species count must be between 1 and 5"
         except Exception:
             errors['species_count'] = "Invalid species count"
-        
-        # Validate environment type
-        valid_environments = ['forest', 'desert', 'ocean', 'tundra']
-        if input_data['environment_type'] not in valid_environments:
-            errors['environment_type'] = f"Invalid environment. Must be one of {valid_environments}"
-        
-        # Validate interaction mode
-        valid_interactions = ['predator_prey', 'cooperative', 'competitive']
-        if input_data['interaction_mode'] not in valid_interactions:
-            errors['interaction_mode'] = f"Invalid interaction mode. Must be one of {valid_interactions}"
         
         return errors
     
     def save_input(self, input_data: Dict[str, Any]) -> str:
-        """
-        Save input data to a JSON file with timestamp.
-        
-        Args:
-            input_data (Dict[str, Any]): Dictionary of input parameters
-        
-        Returns:
-            str: Path to the saved input file
-        
-        Raises:
-            ValueError: If input data is invalid, with specific error details
-        """
-        # Validate input and get any errors
         validation_errors = self.validate_input(input_data)
         
-        # If there are any errors, raise a detailed ValueError
         if validation_errors:
             error_message = "Invalid input data:\n" + "\n".join(
                 f"- {key}: {value}" for key, value in validation_errors.items()
             )
             raise ValueError(error_message)
         
-        # If no errors, proceed with saving
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"input_{timestamp}.json"
         filepath = os.path.join(self.data_dir, filename)
@@ -92,12 +42,6 @@ class InputDataManager:
         return filepath
     
     def load_latest_input(self) -> Dict[str, Any]:
-        """
-        Load the most recent input data file.
-        
-        Returns:
-            Dict[str, Any]: Most recent input data
-        """
         input_files = [f for f in os.listdir(self.data_dir) if f.startswith('input_') and f.endswith('.json')]
         
         if not input_files:
@@ -108,3 +52,93 @@ class InputDataManager:
         
         with open(filepath, 'r') as f:
             return json.load(f)
+
+def truncate_text(text, font, max_width):
+    """
+    Truncate text to fit within a specified width, adding ellipsis if needed.
+    
+    Args:
+        text (str): The text to truncate
+        font (pygame.font.Font): The font used for rendering
+        max_width (int): Maximum allowed width
+    
+    Returns:
+        str: Truncated text
+    """
+    if not text:
+        return text
+    
+    if font.render(text, True, (255, 255, 255)).get_width() <= max_width:
+        return text
+    
+    left, right = 0, len(text)
+    while left < right:
+        mid = (left + right + 1) // 2
+        truncated = text[:mid] + '...'
+        rendered = font.render(truncated, True, (255, 255, 255))
+        
+        if rendered.get_width() <= max_width:
+            left = mid
+        else:
+            right = mid - 1
+    
+    return text[:left] + '...'
+
+def wrap_text(text, font, max_width):
+    """
+    Wrap text to fit within a specified width.
+    
+    Args:
+        text (str): The text to wrap
+        font (pygame.font.Font): The font used for rendering
+        max_width (int): Maximum allowed width
+    
+    Returns:
+        list: List of wrapped text lines
+    """
+    words = text.split()
+    wrapped_lines = []
+    current_line = []
+    current_line_width = 0
+
+    for word in words:
+        word_surface = font.render(word, True, (0, 0, 0))
+        word_width = word_surface.get_width()
+        
+        test_line = ' '.join(current_line + [word])
+        test_surface = font.render(test_line, True, (0, 0, 0))
+        
+        if test_surface.get_width() <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                wrapped_lines.append(' '.join(current_line))
+            current_line = [word]
+    
+    if current_line:
+        wrapped_lines.append(' '.join(current_line))
+    
+    return wrapped_lines
+
+def handle_scroll(event, total_height, max_scroll_height):
+    """
+    Handle scrolling for a scrollable text area.
+    
+    Args:
+        event (pygame.event.Event): The pygame event
+        total_height (int): Total height of the content
+        max_scroll_height (int): Maximum scrollable height
+    
+    Returns:
+        int: Updated scroll offset
+    """
+    scroll_offset = 0
+    max_scroll = max(0, total_height - max_scroll_height)
+    
+    if event.type == pygame.MOUSEWHEEL:
+        if event.y > 0:
+            scroll_offset = max(0, scroll_offset - 20)
+        elif event.y < 0:
+            scroll_offset = min(max_scroll, scroll_offset + 20)
+    
+    return scroll_offset

@@ -1,10 +1,16 @@
 import pygame
 import sys
 import json
+<<<<<<< HEAD
 from inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
 from visualization import InvasionSimulation
 from feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
 from conditions import GameConditions
+=======
+from src.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
+from src.visualization import InvasionSimulation
+from src.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
+>>>>>>> a306a42d472a6257925fcdda61771f7fb21c7bd2
 
 pygame.init()
 

@@ -4,6 +4,7 @@ import json
 from inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
 from visualization import InvasionSimulation
 from feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
+from conditions import GameConditions
 
 pygame.init()
 
@@ -25,6 +26,7 @@ COMMENT_PANEL = pygame.Rect(0, 0, 300, 700)
 INPUT_PANEL = pygame.Rect(0, 700, 300, 300)
 GAME_AREA = pygame.Rect(300, 0, 700, 700)
 FEEDBACK_PANEL = pygame.Rect(300, 700, 700, 300)
+CONDITIONS_PANEL = pygame.Rect(300, 0, 700, 100)  # Top of game area
 
 comments = []
 user_input = {
@@ -46,10 +48,12 @@ feedback_messages = []
 feedback_scroll_offset = 0
 MAX_FEEDBACK_SCROLL_HEIGHT = 260  # Slightly less than panel height
 
+game_conditions = GameConditions()
+
 def draw_environment():
     if environment is not None:
         # Create a surface for the environment
-        env_surface = pygame.Surface((GAME_AREA.width, GAME_AREA.height))
+        env_surface = pygame.Surface((GAME_AREA.width, GAME_AREA.height - CONDITIONS_PANEL.height))
         env_surface.fill(WHITE)  # Fill with white background
         
         # Adjust grid size and cell size to fill more of the game area
@@ -58,12 +62,12 @@ def draw_environment():
         
         # Calculate cell size to maximize grid size while fitting in game area
         cell_size_x = GAME_AREA.width // grid_width
-        cell_size_y = GAME_AREA.height // grid_height
+        cell_size_y = (GAME_AREA.height - CONDITIONS_PANEL.height) // grid_height
         cell_size = min(cell_size_x, cell_size_y)
         
         # Center the grid in the game area
         offset_x = (GAME_AREA.width - (grid_width * cell_size)) // 2
-        offset_y = (GAME_AREA.height - (grid_height * cell_size)) // 2
+        offset_y = ((GAME_AREA.height - CONDITIONS_PANEL.height) - (grid_height * cell_size)) // 2
         
         # Render the environment
         for y in range(grid_height):
@@ -79,7 +83,7 @@ def draw_environment():
                 pygame.draw.rect(env_surface, color, rect)
         
         # Blit the environment surface onto the main screen at the game area
-        screen.blit(env_surface, (GAME_AREA.left, GAME_AREA.top))
+        screen.blit(env_surface, (GAME_AREA.left, GAME_AREA.top + CONDITIONS_PANEL.height))
 
 def handle_input_events(event):
     global input_text, input_active, current_field_index, user_input, comments, environment
@@ -103,6 +107,8 @@ def handle_input_events(event):
                 input_text = ""
                 input_active = False
                 current_field_index = len(input_fields)
+                game_conditions.update()  # Update game conditions after user input
+                add_feedback(f"Game conditions updated for {species_count} species.")
             
             except ValueError as e:
                 comments.append(f"Error: {str(e)}")
@@ -164,6 +170,24 @@ def initialize_environment(environment_type, species_count):
     
     environment.initialize_random()
 
+def draw_conditions():
+    # Draw conditions panel
+    pygame.draw.rect(screen, LIGHT_BLUE, CONDITIONS_PANEL)
+    conditions = game_conditions.get_current_conditions()
+    
+    # Format conditions text
+    conditions_text = [
+        f"Year: {conditions['year']} | Month: {conditions['month']} | Week: {conditions['week']}",
+        f"Temperature: {conditions['temperature']}°C | Humidity: {conditions['humidity']}% | Weather: {conditions['weather']}"
+    ]
+    
+    y_offset = 20
+    for text in conditions_text:
+        text_surface = font.render(text, True, BLACK)
+        text_rect = text_surface.get_rect(center=(CONDITIONS_PANEL.centerx, CONDITIONS_PANEL.top + y_offset))
+        screen.blit(text_surface, text_rect)
+        y_offset += 30
+
 running = True
 clock = pygame.time.Clock()
 
@@ -185,6 +209,9 @@ while running:
     # Draw game environment
     draw_environment()
     
+    # Draw conditions panel
+    draw_conditions()
+    
     # Draw feedback panel and get its total height
     feedback_total_height = draw_feedback_panel(screen, font)
     
@@ -204,8 +231,9 @@ while running:
     if current_time - last_update_time > UPDATE_INTERVAL:
         if environment is not None:
             environment.update()
-            # Optional: Add feedback about environment changes
-            add_feedback(f"Environment updated. Species dynamics evolving.")
+            game_conditions.update()  # Explicitly update game conditions
+            # Feedback about both environment and conditions
+            add_feedback(f"Environment and game conditions updated.")
         
         last_update_time = current_time
     

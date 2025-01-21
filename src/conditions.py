@@ -12,22 +12,34 @@ class GameConditions:
         self.current_week = 1
         self.temperature = 20.0
         self.humidity = 60.0
-        self.weather = "Clear"
+        self.current_weather = "Clear"  # Only use current_weather
         
         # Weather and climate parameters based on Amsterdam's maritime climate
         self.monthly_weather_patterns = {
-            1: {"base_temp": 3, "temp_range": 3, "base_humidity": 85, "humidity_range": 10, "weather_types": ["Cold", "Rainy", "Cloudy", "Windy"]},
-            2: {"base_temp": 4, "temp_range": 4, "base_humidity": 80, "humidity_range": 15, "weather_types": ["Cold", "Rainy", "Partly Cloudy", "Windy"]},
-            3: {"base_temp": 7, "temp_range": 5, "base_humidity": 75, "humidity_range": 15, "weather_types": ["Cool", "Rainy", "Partly Cloudy", "Windy"]},
-            4: {"base_temp": 11, "temp_range": 6, "base_humidity": 70, "humidity_range": 20, "weather_types": ["Cool", "Rainy", "Partly Sunny", "Windy"]},
-            5: {"base_temp": 15, "temp_range": 7, "base_humidity": 70, "humidity_range": 15, "weather_types": ["Mild", "Partly Sunny", "Occasional Rain", "Cloudy"]},
-            6: {"base_temp": 18, "temp_range": 7, "base_humidity": 70, "humidity_range": 15, "weather_types": ["Warm", "Sunny", "Occasional Rain", "Partly Cloudy"]},
-            7: {"base_temp": 20, "temp_range": 8, "base_humidity": 75, "humidity_range": 15, "weather_types": ["Warm", "Sunny", "Occasional Rain", "Partly Cloudy"]},
-            8: {"base_temp": 20, "temp_range": 7, "base_humidity": 75, "humidity_range": 15, "weather_types": ["Warm", "Sunny", "Occasional Rain", "Cloudy"]},
-            9: {"base_temp": 17, "temp_range": 6, "base_humidity": 80, "humidity_range": 15, "weather_types": ["Mild", "Partly Sunny", "Occasional Rain", "Cloudy"]},
-            10: {"base_temp": 13, "temp_range": 5, "base_humidity": 85, "humidity_range": 10, "weather_types": ["Cool", "Rainy", "Cloudy", "Windy"]},
-            11: {"base_temp": 8, "temp_range": 4, "base_humidity": 85, "humidity_range": 10, "weather_types": ["Cold", "Rainy", "Cloudy", "Windy"]},
-            12: {"base_temp": 4, "temp_range": 3, "base_humidity": 85, "humidity_range": 10, "weather_types": ["Cold", "Rainy", "Snowy", "Cloudy"]}
+            1: {"base_temp": 3, "temp_range": 3, "base_humidity": 85, "humidity_range": 10, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Snowy"]},
+            2: {"base_temp": 4, "temp_range": 4, "base_humidity": 80, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Windy"]},
+            3: {"base_temp": 7, "temp_range": 5, "base_humidity": 75, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Windy"]},
+            4: {"base_temp": 11, "temp_range": 6, "base_humidity": 70, "humidity_range": 20, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Windy"]},
+            5: {"base_temp": 15, "temp_range": 7, "base_humidity": 70, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Windy"]},
+            6: {"base_temp": 18, "temp_range": 7, "base_humidity": 70, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy"]},
+            7: {"base_temp": 20, "temp_range": 8, "base_humidity": 75, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy"]},
+            8: {"base_temp": 20, "temp_range": 7, "base_humidity": 75, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy"]},
+            9: {"base_temp": 17, "temp_range": 6, "base_humidity": 80, "humidity_range": 15, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Windy"]},
+            10: {"base_temp": 13, "temp_range": 5, "base_humidity": 85, "humidity_range": 10, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Windy"]},
+            11: {"base_temp": 8, "temp_range": 4, "base_humidity": 85, "humidity_range": 10, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Windy"]},
+            12: {"base_temp": 4, "temp_range": 3, "base_humidity": 85, "humidity_range": 10, 
+                "weather_types": ["Clear", "Rainy", "Cloudy", "Foggy", "Snowy"]}
         }
         
         # Initial conditions
@@ -77,16 +89,29 @@ class GameConditions:
     def _update_weather(self):
         """
         Update weather conditions based on temperature and humidity.
-        Ensures more consistent and predictable weather updates.
         """
-        # High chance of fog when cold and humid
+        month_pattern = self.monthly_weather_patterns[self.current_month]
+        
+        # Higher chance of specific weather based on conditions
+        if self.temperature < 5 and self.humidity > 80:
+            if "Snowy" in month_pattern["weather_types"]:
+                if random.random() < 0.6:
+                    self.current_weather = "Snowy"
+                    return
+                    
         if self.temperature < 10 and self.humidity > 80:
-            if random.random() < 0.7:  # 70% chance of fog in right conditions
-                self.current_weather = "Foggy"
+            if "Foggy" in month_pattern["weather_types"]:
+                if random.random() < 0.6:
+                    self.current_weather = "Foggy"
+                    return
+        
+        if self.humidity > 75:
+            if random.random() < 0.4:
+                self.current_weather = "Rainy"
                 return
         
-        # Otherwise choose from regular weather types
-        self.current_weather = random.choice(["Clear", "Rainy", "Cloudy"])
+        # Otherwise choose from available weather types for the month
+        self.current_weather = random.choice(month_pattern["weather_types"])
     
     def update_conditions_after_species_input(self, species):
         """

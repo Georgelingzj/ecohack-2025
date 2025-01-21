@@ -37,9 +37,10 @@ CONDITIONS_PANEL = pygame.Rect(300, 0, 700, 100)  # Top of game area
 
 comments = []
 user_input = {
-    'species_count': None
+    'species_count': None,
+    'reduce_pollution': None
 }
-input_fields = ['species_count']
+input_fields = ['species_count', 'reduce_pollution']
 current_field_index = 0
 input_text = ""
 input_active = False
@@ -57,11 +58,19 @@ MAX_FEEDBACK_SCROLL_HEIGHT = 260  # Slightly less than panel height
 
 game_conditions = GameConditions()
 
+field_prompts = {
+    'species_count': 'Enter number of species (1-5)',
+    'reduce_pollution': 'Enter pollution reduction effort (0-100%)'
+}
+
 def draw_environment():
     if environment is not None:
         # Create a surface for the environment
         env_surface = pygame.Surface((GAME_AREA.width, GAME_AREA.height - CONDITIONS_PANEL.height))
-        env_surface.fill(WHITE)  # Fill with white background
+        
+        # Get the current weather background color
+        bg_color = environment.weather_colors.get(environment.current_weather, (255, 255, 255))
+        env_surface.fill(bg_color)  # Fill with weather-based background
         
         # Adjust grid size and cell size to fill more of the game area
         grid_width = 200  # Reduced grid width
@@ -102,20 +111,32 @@ def handle_input_events(event):
     if event.type == pygame.KEYDOWN and input_active:
         if event.key == pygame.K_RETURN:
             try:
-                species_count = int(input_text.strip())
-                if species_count < 1 or species_count > 5:
-                    raise ValueError("Species count must be between 1 and 5")
-                
-                user_input['species_count'] = species_count
-                comments.append(f"Species count set to: {species_count}")
-                
-                initialize_environment(None, species_count)
+                if current_field_index == 0:  # Species count
+                    species_count = int(input_text.strip())
+                    if species_count < 1 or species_count > 5:
+                        raise ValueError("Species count must be between 1 and 5")
+                    
+                    user_input['species_count'] = species_count
+                    comments.append(f"Species count set to: {species_count}")
+                    initialize_environment(None, species_count)
+                    
+                elif current_field_index == 1:  # Pollution reduction
+                    reduction = int(input_text.strip())
+                    if reduction < 0 or reduction > 100:
+                        raise ValueError("Reduction must be between 0 and 100")
+                    
+                    user_input['reduce_pollution'] = reduction
+                    comments.append(f"Pollution reduction set to: {reduction}%")
+                    if environment:
+                        environment.set_pollution_reduction(reduction)
                 
                 input_text = ""
-                input_active = False
-                current_field_index = len(input_fields)
-                game_conditions.update()  # Update game conditions after user input
-                add_feedback(f"Game conditions updated for {species_count} species.")
+                current_field_index += 1
+                if current_field_index >= len(input_fields):
+                    input_active = False
+                
+                game_conditions.update()
+                add_feedback(f"Parameters updated: {user_input}")
             
             except ValueError as e:
                 comments.append(f"Error: {str(e)}")
@@ -138,10 +159,6 @@ def draw_input_field():
         return
     
     current_field = input_fields[current_field_index]
-    
-    field_prompts = {
-        'species_count': 'Enter number of species (1-5)'
-    }
     
     prompt_text = field_prompts.get(current_field, current_field)
     wrapped_prompt = wrap_text(prompt_text, input_font, 280)
@@ -238,9 +255,16 @@ while running:
     if current_time - last_update_time > UPDATE_INTERVAL:
         if environment is not None:
             environment.update()
-            game_conditions.update()  # Explicitly update game conditions
-            # Feedback about both environment and conditions
-            add_feedback(f"Environment and game conditions updated.")
+            game_conditions.update()
+            
+            # Get current conditions and update environment weather
+            conditions = game_conditions.get_current_conditions()
+            environment.set_weather(conditions['weather'])
+            
+            # Draw environment with updated weather
+            draw_environment()
+            
+            add_feedback(f"Environment and conditions updated. Weather: {conditions['weather']}")
         
         last_update_time = current_time
     

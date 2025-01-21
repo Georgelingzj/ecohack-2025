@@ -12,6 +12,7 @@ from src.visualization import InvasionSimulation
 from src.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
 
 
+
 pygame.init()
 
 WIDTH, HEIGHT = 1000, 1000

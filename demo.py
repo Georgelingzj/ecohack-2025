@@ -1,9 +1,9 @@
 import pygame
 import sys
 import json
-from inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
-from visualization import InvasionSimulation
-from feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
+from src.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
+from src.visualization import InvasionSimulation
+from src.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
 
 pygame.init()
 

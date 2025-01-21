@@ -3,15 +3,12 @@ import sys
 import json
 import numpy as np
 
-from src.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
-from src.visualization import InvasionSimulation, FCMVisualizer, EcologicalFCM
-from src.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
-from src.conditions import GameConditions
-from src.plotting import DensityPlotter
+from src.ui.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
+from src.visual.visualization import InvasionSimulation, FCMVisualizer, EcologicalFCM
+from src.ui.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
+from src.environment.conditions import GameConditions
+from src.ui.plotting import DensityPlotter
 
-from src.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
-from src.visualization import InvasionSimulation
-from src.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
 
 
 
@@ -32,14 +29,13 @@ LIGHT_BLUE = (173, 216, 230)
 font = pygame.font.SysFont(None, 22)
 input_font = pygame.font.SysFont(None, 28)
 
-COMMENT_PANEL = pygame.Rect(0, 0, 300, 700)
-INPUT_PANEL = pygame.Rect(0, 700, 300, 300)
-GAME_AREA = pygame.Rect(300, 0, 700, 700)
-FEEDBACK_PANEL = pygame.Rect(300, 700, 700, 300)
-CONDITIONS_PANEL = pygame.Rect(300, 0, 700, 100)  # Top of game area
-
-# Add FCM panel
-FCM_PANEL = pygame.Rect(1000, 0, 400, 1000)  # New panel on the right
+# Panel definitions
+CHAT_HISTORY_PANEL = pygame.Rect(0, 0, 300, 700)
+CHAT_INPUT_PANEL = pygame.Rect(0, 700, 300, 300)
+GAME_AREA = pygame.Rect(300, 0, 700, 1000)
+FCM_PANEL = pygame.Rect(1000, 0, 400, 800)  # FCM graphs panel
+INFO_PANEL = pygame.Rect(1000, 800, 400, 200)  # Info panel below FCMs
+FEEDBACK_PANEL = pygame.Rect(300, 700, 700, 300)  # For density plot
 
 comments = []
 user_input = {
@@ -104,24 +100,22 @@ def draw_environment():
         
         # Calculate fixed size for the game area
         fixed_width = GAME_AREA.width - 100  # 50px padding on each side
-        fixed_height = GAME_AREA.height - CONDITIONS_PANEL.height - 100  # 50px padding top/bottom
+        fixed_height = GAME_AREA.height - 100  # 50px padding top/bottom
         
         # Scale environment to fixed size
         env_surface = pygame.transform.scale(env_surface, (fixed_width, fixed_height))
         
         # Center position
         x_offset = GAME_AREA.left + (GAME_AREA.width - fixed_width) // 2
-        y_offset = GAME_AREA.top + CONDITIONS_PANEL.height + (
-            (GAME_AREA.height - CONDITIONS_PANEL.height - fixed_height) // 2
-        )
+        y_offset = GAME_AREA.top + (GAME_AREA.height - fixed_height) // 2
         
         # Draw weather background
         weather_color = environment.weather_colors.get(environment.current_weather, (255, 255, 255))
         weather_rect = pygame.Rect(
             GAME_AREA.left,
-            GAME_AREA.top + CONDITIONS_PANEL.height,
+            GAME_AREA.top,
             GAME_AREA.width,
-            GAME_AREA.height - CONDITIONS_PANEL.height
+            GAME_AREA.height
         )
         pygame.draw.rect(screen, weather_color, weather_rect)
         
@@ -161,112 +155,35 @@ def handle_input_events(event):
             initialize_environment(None)
             return
             
-        input_box = INPUT_PANEL
+        # Check for chat input box click
+        input_box = pygame.Rect(10, CHAT_INPUT_PANEL.top + 10, 
+                              CHAT_INPUT_PANEL.width - 20, 40)
         input_active = input_box.collidepoint(event.pos)
     
     elif event.type == pygame.KEYDOWN:
         if input_active:
-            if event.key == pygame.K_RETURN:
-                try:
-                    value = int(input_text.strip())
-                    current_field = input_fields[current_field_index]
-                    
-                    if current_field == 'reduce_pollution':
-                        if value < 0 or value > 100:
-                            raise ValueError("Reduction must be between 0 and 100")
-                        user_input['reduce_pollution'] = value
-                        if environment:
-                            environment.set_pollution_reduction(value)
-                            
-                    elif current_field == 'temperature':
-                        if value < 0 or value > 40:
-                            raise ValueError("Temperature must be between 0 and 40°C")
-                        user_input['temperature'] = value
-                        if environment:
-                            environment.set_temperature(value)
-                            
-                    elif current_field == 'humidity':
-                        if value < 0 or value > 100:
-                            raise ValueError("Humidity must be between 0 and 100")
-                        user_input['humidity'] = value
-                        if environment:
-                            environment.set_humidity(value)
-                    
-                    input_text = ""
-                    current_field_index += 1
-                    if current_field_index >= len(input_fields):
-                        input_active = False
-                    
-                    game_conditions.update()
-                    add_feedback(f"Updated {current_field} to {value}")
+            if event.key == pygame.K_RETURN and input_text:
+                # Process chat message
+                params = input_manager.process_chat_message(input_text)
                 
-                except ValueError as e:
-                    comments.append(f"Error: {str(e)}")
-                    input_text = ""
+                # Update environment based on extracted parameters
+                if environment:
+                    if 'temperature' in params:
+                        environment.set_temperature(params['temperature'])
+                    if 'humidity' in params:
+                        environment.set_humidity(params['humidity'])
+                    if 'pollution' in params:
+                        environment.set_pollution_reduction(params['pollution'])
+                
+                input_text = ""
             
             elif event.key == pygame.K_BACKSPACE:
                 input_text = input_text[:-1]
-            
             elif event.key == pygame.K_ESCAPE:
                 input_text = ""
                 input_active = False
-            
-            elif event.unicode.isdigit():
+            else:
                 input_text += event.unicode
-        
-        # Environment controls (only when environment exists and input not active)
-        if environment and not input_active:
-            # Temperature controls (T/G keys)
-            if event.key == pygame.K_t:
-                current_temp = environment.temperature
-                environment.set_temperature(min(40, current_temp + 5))
-                add_feedback(f"Temperature increased to {environment.temperature}°C")
-            elif event.key == pygame.K_g:
-                current_temp = environment.temperature
-                environment.set_temperature(max(0, current_temp - 5))
-                add_feedback(f"Temperature decreased to {environment.temperature}°C")
-            
-            # Humidity controls (H/F keys)
-            elif event.key == pygame.K_h:
-                current_humidity = environment.humidity
-                environment.set_humidity(min(100, current_humidity + 10))
-                add_feedback(f"Humidity increased to {environment.humidity}%")
-            elif event.key == pygame.K_f:
-                current_humidity = environment.humidity
-                environment.set_humidity(max(0, current_humidity - 10))
-                add_feedback(f"Humidity decreased to {environment.humidity}%")
-        
-        # Parameter selection with arrow keys
-        if event.key == pygame.K_RIGHT:
-            selected_parameter = (selected_parameter + 1) % len(parameter_names)
-            add_feedback(f"Selected parameter: {parameter_names[selected_parameter]}")
-        elif event.key == pygame.K_LEFT:
-            selected_parameter = (selected_parameter - 1) % len(parameter_names)
-            add_feedback(f"Selected parameter: {parameter_names[selected_parameter]}")
-            
-        # Quick parameter adjustment with up/down arrows
-        if event.key == pygame.K_UP or event.key == pygame.K_DOWN:
-            param = parameter_names[selected_parameter]
-            min_val, max_val, unit = parameter_ranges[param]
-            current_val = getattr(environment, param)
-            
-            # Adjust step size based on parameter
-            step = 5 if param == 'temperature' else 10
-            
-            if event.key == pygame.K_UP:
-                new_val = min(max_val, current_val + step)
-            else:
-                new_val = max(min_val, current_val - step)
-            
-            # Update the parameter
-            if param == 'temperature':
-                environment.set_temperature(new_val)
-            elif param == 'humidity':
-                environment.set_humidity(new_val)
-            else:
-                environment.set_pollution_reduction(new_val)
-            
-            add_feedback(f"Changed {param} to {new_val}{unit}")
 
 def draw_input_field():
     # Always draw input field before all inputs are completed
@@ -403,6 +320,66 @@ def draw_game():
         ecological_fcm.render(screen, pygame.Rect(FCM_PANEL.left, FCM_PANEL.top + FCM_PANEL.height//2,
                                                 FCM_PANEL.width, FCM_PANEL.height//2))
 
+def draw_chat_history():
+    """Draw chat history in the left panel"""
+    history_surface = pygame.Surface((CHAT_HISTORY_PANEL.width, CHAT_HISTORY_PANEL.height))
+    history_surface.fill(GRAY)
+    
+    y_offset = 10
+    for sender, message in input_manager.chat_history[-20:]:  # Show last 20 messages
+        color = DARK_GRAY if sender == "system" else BLACK
+        text_surface = font.render(f"{sender}: {message}", True, color)
+        history_surface.blit(text_surface, (10, y_offset))
+        y_offset += 25
+    
+    screen.blit(history_surface, CHAT_HISTORY_PANEL)
+
+def draw_chat_input():
+    """Draw chat input box"""
+    pygame.draw.rect(screen, DARK_GRAY, CHAT_INPUT_PANEL)
+    
+    # Draw input box
+    input_box = pygame.Rect(10, CHAT_INPUT_PANEL.top + 10, 
+                           CHAT_INPUT_PANEL.width - 20, 40)
+    pygame.draw.rect(screen, WHITE, input_box)
+    
+    # Draw input text
+    if input_text:
+        text_surface = input_font.render(input_text, True, BLACK)
+        screen.blit(text_surface, (input_box.x + 5, input_box.y + 5))
+
+def draw_game_info():
+    """Draw game information in the right panel"""
+    if environment:
+        info_surface = pygame.Surface((INFO_PANEL.width, INFO_PANEL.height))
+        info_surface.fill(WHITE)
+        
+        # Calculate densities
+        total_cells = environment.grid.size
+        native_density = np.sum(environment.grid == 1) / total_cells * 100
+        invasive_density = np.sum(environment.grid == 2) / total_cells * 100
+        
+        # Create info text
+        info_text = [
+            f"Environmental Parameters:",
+            f"Temperature: {environment.temperature}°C",
+            f"Humidity: {environment.humidity}%",
+            f"Pollution Reduction: {environment.pollution_reduction}%",
+            "",
+            f"Species Status:",
+            f"Native: {native_density:.1f}%",
+            f"Invasive: {invasive_density:.1f}%",
+            f"Weather: {environment.current_weather}"
+        ]
+        
+        y_offset = 10
+        for text in info_text:
+            text_surface = font.render(text, True, BLACK)
+            info_surface.blit(text_surface, (10, y_offset))
+            y_offset += 25
+        
+        screen.blit(info_surface, INFO_PANEL)
+
 running = True
 clock = pygame.time.Clock()
 
@@ -416,19 +393,22 @@ while running:
     # Clear the screen
     screen.fill(WHITE)
     
-    # Draw panels
-    pygame.draw.rect(screen, GRAY, COMMENT_PANEL)
-    pygame.draw.rect(screen, DARK_GRAY, INPUT_PANEL)
-    
     if not game_started:
         # Draw start button when game hasn't started
         draw_start_button(mouse_pos)
     else:
-        # Draw game elements only after starting
-        draw_input_field()
+        # Draw chat interface
+        draw_chat_history()
+        draw_chat_input()
+        
+        # Draw game elements
         draw_environment()
-        draw_conditions()
-        draw_environment_stats()
+        
+        # Draw FCM graphs
+        draw_game()
+        
+        # Draw game info below FCMs
+        draw_game_info()
         
         # Update and draw plot
         if density_plotter and environment:
@@ -445,26 +425,8 @@ while running:
                 # Get current conditions and update environment weather
                 conditions = game_conditions.get_current_conditions()
                 environment.set_weather(conditions['weather'])
-                
-                # Draw environment with updated weather
-                draw_environment()
-                
-                add_feedback(f"Environment and conditions updated. Weather: {conditions['weather']}")
             
             last_update_time = current_time
-        
-        # Check victory and game over conditions
-        if environment and not environment.game_over and not environment.victory_condition_met:
-            if environment.check_victory_condition():
-                add_feedback("Victory! You've successfully controlled the invasive species!")
-            elif environment.check_game_over():
-                add_feedback("Game Over! The ecosystem has collapsed!")
-        
-        # Draw game status
-        draw_game_status()
-        
-        # Draw FCM graph
-        draw_game()
     
     # Process events
     for event in pygame.event.get():

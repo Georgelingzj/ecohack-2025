@@ -8,6 +8,12 @@ class InputDataManager:
     def __init__(self, data_dir='input_data'):
         self.data_dir = data_dir
         os.makedirs(data_dir, exist_ok=True)
+        self.chat_history = []
+        self.parameter_keywords = {
+            'temperature': ['temp', 'temperature', 'heat', 'cold'],
+            'humidity': ['humid', 'humidity', 'moisture', 'wet', 'dry'],
+            'pollution': ['pollution', 'pollute', 'clean', 'reduce']
+        }
     
     def validate_input(self, input_data: Dict[str, Any]) -> Dict[str, str]:
         errors = {}
@@ -52,6 +58,26 @@ class InputDataManager:
         
         with open(filepath, 'r') as f:
             return json.load(f)
+
+    def process_chat_message(self, message):
+        """Process chat message and extract parameter changes"""
+        self.chat_history.append(("user", message))
+        
+        # Extract parameters from message
+        extracted_params = {}
+        words = message.lower().split()
+        
+        for param, keywords in self.parameter_keywords.items():
+            for keyword in keywords:
+                if keyword in words:
+                    # Find numbers in the message
+                    numbers = [float(word) for word in words if word.replace('.', '').isdigit()]
+                    if numbers:
+                        extracted_params[param] = numbers[0]
+                        self.chat_history.append(("system", f"Setting {param} to {numbers[0]}"))
+                        break
+        
+        return extracted_params
 
 def truncate_text(text, font, max_width):
     """

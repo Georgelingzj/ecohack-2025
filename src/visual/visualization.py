@@ -2,7 +2,7 @@ import numpy as np
 import pygame
 import random
 import math
-from src.invasion_theories import InvasionStrategy, InvasionTheory
+from ..FCM.invasion_theories import InvasionStrategy, InvasionTheory
 
 class InvasionSimulation:
     def __init__(self, width=100, height=100, density_plotter=None, 
@@ -33,7 +33,7 @@ class InvasionSimulation:
         # Growth control parameters
         self.initial_density = 0.2  # Lower initial density
         self.base_neighbors_required = 3
-        self.survival_min = 2
+        self.survival_min = 2 
         self.survival_max = 3
         self.invasion_threshold = 1.0
         
@@ -192,61 +192,65 @@ class InvasionSimulation:
         # Calculate current densities (as percentages)
         total_cells = self.grid.size
         densities = {
-            species: (np.sum(self.grid == species) / total_cells) * 100
+            species: (np.sum(self.grid == species) / total_cells)
             for species in range(1, self.species_count + 1)
         }
         
+        # Calculate competition pressure from invasive species
+        invasive_pressure = self.invasion_strategy.calculate_competition_effect(
+            native_density=densities[1],
+            invasive_density=densities[2]
+        )
+        
+        # Update each cell
+        for y in range(self.height):
+            for x in range(self.width):
+                current_species = self.grid[y, x]
+                
+                if current_species == 0:  # Empty cell
+                    # Calculate probabilities for each species to colonize
+                    native_prob = self.growth_rates[1] * self.count_neighbors(x, y, 1)
+                    invasive_prob = self.growth_rates[2] * self.count_neighbors(x, y, 2)
+                    
+                    # Adjust probabilities based on competition
+                    native_prob *= (1 - invasive_pressure)  # Reduce native growth due to invasion
+                    
+                    # Determine which species grows here
+                    if random.random() < native_prob:
+                        new_grid[y, x] = 1
+                    elif random.random() < invasive_prob:
+                        new_grid[y, x] = 2
+                    
+                else:  # Occupied cell
+                    # Calculate death probability
+                    base_death_rate = self.death_rates[current_species]
+                    
+                    if current_species == 1:  # Native species
+                        # Increase death rate based on invasive pressure
+                        death_prob = base_death_rate * (1 + invasive_pressure)
+                    else:  # Invasive species
+                        death_prob = base_death_rate
+                    
+                    # Apply environmental stress
+                    if not self.check_favorable_conditions(current_species):
+                        death_prob *= 1.5  # Increase death rate in unfavorable conditions
+                    
+                    if random.random() < death_prob:
+                        new_grid[y, x] = 0
+        
         # Recovery phase for low population species
         for species in range(1, self.species_count + 1):
-            if densities[species] < self.min_population_threshold[species] * 100:  # Convert threshold to percentage
+            if densities[species] < self.min_population_threshold[species]:
                 if self.check_favorable_conditions(species):
-                    # Find empty cells for potential recovery
                     empty_cells = np.where(self.grid == 0)
                     if len(empty_cells[0]) > 0:
-                        # Select random empty cells for recovery
                         recovery_count = int(self.recovery_rates[species] * total_cells)
-                        recovery_count = max(recovery_count, int(0.02 * total_cells))  # Ensure minimum recovery
+                        recovery_count = max(recovery_count, int(0.02 * total_cells))
                         
                         for _ in range(min(recovery_count, len(empty_cells[0]))):
                             idx = random.randint(0, len(empty_cells[0]) - 1)
                             y, x = empty_cells[0][idx], empty_cells[1][idx]
                             new_grid[y, x] = species
-
-        # Track endangered species population change
-        endangered_percentage = densities[3]
-        self.endangered_history.append(endangered_percentage)
-        if len(self.endangered_history) > 10:  # Keep last 10 updates
-            self.endangered_history.pop(0)
-        self.last_endangered_percentage = endangered_percentage
-        
-        for y in range(self.height):
-            for x in range(self.width):
-                neighbors = self.count_neighbors(x, y)
-                current_species = self.grid[y, x]
-                
-                if current_species == 0:
-                    # Empty cell - check for growth
-                    for species in [1, 2, 3]:  # Check all species
-                        if (neighbors[species] >= self.base_neighbors_required and 
-                            random.random() < self.growth_rates[species]):
-                            new_grid[y, x] = species
-                            break
-                else:
-                    # Apply environmental effects and competition
-                    death_chance = self.calculate_death_chance(current_species)
-                    if random.random() < death_chance:
-                        new_grid[y, x] = 0
-                        continue
-                    
-                    # Competition effects
-                    if current_species == 1:  # Native species
-                        if (neighbors[2] > neighbors[1] * 1.5 and  # Strong invasive pressure
-                            random.random() < self.invasion_strength[2]):
-                            new_grid[y, x] = 2
-                    elif current_species == 3:  # Endangered species
-                        if (neighbors[2] > 0 and  # Any invasive presence
-                            random.random() < self.invasion_strength[2] * 1.5):  # More vulnerable
-                            new_grid[y, x] = 2
         
         self.grid = new_grid
 
@@ -333,9 +337,9 @@ class InvasionSimulation:
         
         return env_surface
     
-    def count_neighbors(self, x, y):
-        """Count the number of neighbors of each species around the given cell"""
-        neighbors = {i: 0 for i in range(self.species_count + 1)}  # Include 0 for empty cells
+    def count_neighbors(self, x, y, species):
+        """Count the number of neighbors of a specific species around the given cell"""
+        neighbors = 0
         
         # Check all 8 neighboring cells
         for dy in [-1, 0, 1]:
@@ -349,7 +353,8 @@ class InvasionSimulation:
                 
                 # Count the species in this neighbor cell
                 neighbor_species = self.grid[ny, nx]
-                neighbors[neighbor_species] += 1
+                if neighbor_species == species:
+                    neighbors += 1
                 
         return neighbors
 

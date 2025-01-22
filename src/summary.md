@@ -20,7 +20,7 @@ A real-time simulation system modeling the dynamics between native, invasive, an
 
 ### 2. Invasion Theories (`src/invasion_theories.py`)
 
-- Implements different invasion hypotheses:
+- Implements different invasion hypotheses:  
   - Enemy Release Hypothesis
   - Evolution of Increased Competitive Ability
   - Novel Weapons Hypothesis

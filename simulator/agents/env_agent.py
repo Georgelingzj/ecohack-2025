@@ -1,132 +1,174 @@
-from camel.agents import ChatAgent
-from camel.configs import DeepSeekConfig
-from camel.messages import BaseMessage
-from camel.models import ModelFactory
-from camel.tasks import Task
-from camel.toolkits import FunctionTool, SearchToolkit
-from camel.types import ModelPlatformType, ModelType
-from camel.societies.workforce import Workforce
-from camel.agents import ChatAgent
-from camel.messages import BaseMessage
-from camel.schemas import OutlinesConverter
+from simulator.agents import BaseAgent
 
-from camel.types import (
-    RoleType,
-)
-
-from simulator.types import (
-    Model4Use, EnvironmentModel
-)
-
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-outliner_model = OutlinesConverter(
-    model_type="/Users/lingzijian/projects/ecohack-Jan20-2025/Qwen2.5-0.5B-Instruct"
-)
-print(f'outliner_model: {outliner_model}')
-
-MODEL_TO_USE = Model4Use.get_key(os.getenv("model_4_use"))
-if MODEL_TO_USE == Model4Use.DEEPSEEK:
-    api_key = os.environ["DEEPSEEK_API_KEY"]
-    api_url = os.environ["DEEPSEEK_API_URL"]
-    model_name = "deepseek-chat"
-elif MODEL_TO_USE == Model4Use.GPT_4o_MINI:
-    api_key = os.environ["OPENAI_API_KEY"]
-    api_url = os.environ["OPENAI_API_URL"]
-    model_name = "gpt-4o-mini"
-else:
-    raise ValueError(f"Unknown model to use: {MODEL_TO_USE}")
-
-env_model = ModelFactory.create(
-    model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
-    model_type=model_name,
-    api_key=api_key,
-    url=api_url,
-    model_config_dict=DeepSeekConfig(temperature=1.0).as_dict(),
-)
-
-system_prompt_init = '''
-You are a environment agent. You are responsible for creating a natural environment as real as possible based on given condition.
-'''
-
-system_prompt_during_game = """
-You are a environment agent. You are responsible for transforming the input description to a natural environment change.
-
-You should first understand the relation of input description and its relevant elements in the natural environment, 
-You should keep irrelevant elements unchanged.
-
-Then return the new environment as the following schema:
-{{schema}}
-"""
-
-system_prompt_during_game.replace('{{schema}}', EnvironmentModel.schema_json(indent=4))
-
-env_agent = ChatAgent(
-    system_message=system_prompt_init,
-    model=env_model,
-    output_language='English'
-)
+from simulator.types import EnvironmentModel, CaseModel
 
 
-def initialize_environment(
-        user_input_condition: str,
-):
-    """
-    Initialize the environment based on the given condition.
+class EnvAgent(BaseAgent):
+    def __init__(self,
+                 model_name='gpt-4o-mini',
+                 max_memory_records=10,
+                 ):
+        super().__init__(
+            model_name=model_name,
+            max_memory_records=max_memory_records
+        )
 
-    :param user_input_condition: The input condition to initialize the environment.
-    :return: The initialized environment.
-    """
-    output = env_agent.step(user_input_condition, response_format=EnvironmentModel)
+        self.environment_memory = []
+        self.case = None
 
-    # change system prompt
-    env_agent.system_message = system_prompt_during_game
-
-
-    return output
-
+    def get_current_environment_status(self):
+        return self.environment_memory[-1]
 
 
-def environment_step(
-        user_input_description: str,
-        current_environment: EnvironmentModel
-):
-    """
-    Transform the input description to a natural environment change.
+    def initialize_environment(
+            self,
+            case_model: CaseModel
+    ):
+        # set case
+        self.case = case_model
 
-    :param user_input_description: The input description to transform.
-    :param current_environment: The current environment.
-    :return: The new environment.
-    """
-    output_raw = env_agent.step(user_input_description)
-    output = outliner_model.convert_pydantic(output_raw.msgs[0].content, EnvironmentModel)
-    return output
+        # generate initialize environment data using case and environment model
+        response_init = self.client.beta.chat.completions.parse(
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Initialize the environment data model with case description for biology invasion experiment."
+                               f"The environment initialization will be the time when invasion happens and if no external factors, the invasion will expand."
+                               f"Use a environment that fits for invasion specie {case_model.invasive_specie_name}  but not for native specie {case_model.native_specie_name}."
+                }
+            ],
+            model=self.model_name,
+            response_format=EnvironmentModel
+        )
 
+        # change to json using pydantic
+        output_init = response_init.choices[0].message.parsed
+        output_json = output_init.model_dump()
+
+        # store environment data
+        self.environment_memory.append(output_json)
+
+        return output_init
+
+    async def predict_environment(
+            self,
+            agent_status_list: list[dict],
+            env_change_condition: str,
+            user_instruction: str = None
+    ):
+        # last self.max_memory_records records
+        if user_instruction:
+            user_prompt = """
+            Environment history data in the past month:
+            {{environment_memory}}
+            
+            The current bio status:
+            {{agent_status_list}}
+            
+            The environment original changing regular pattern:
+            {{env_change_condition}}
+            
+            External factors:
+            {{user_instruction}}
+            """
+            user_prompt = user_prompt.replace(
+                '{{user_instruction}}', user_instruction,
+            ).replace(
+                '{{agent_status_list}}', str(agent_status_list),
+            ).replace(
+                '{{env_change_condition}}', env_change_condition,
+            ).replace(
+                '{{environment_memory}}', str(self.environment_memory[-self.max_memory_records:]),
+            )
+
+        else:
+            user_prompt = """
+                        Environment history data in the past month:
+                        {{environment_memory}}
+
+                        The current bio status:
+                        {{agent_status_list}}
+
+                        The environment original changing regular pattern:
+                        {{env_change_condition}}
+                        """
+
+            user_prompt = user_prompt.replace(
+                '{{agent_status_list}}', str(agent_status_list),
+            ).replace(
+                '{{env_change_condition}}', env_change_condition,
+            ).replace(
+                '{{environment_memory}}', str(self.environment_memory[-self.max_memory_records:]),
+            )
+
+        # generate predict environment data using case and environment model
+        response_predict = await self.async_client.beta.chat.completions.parse(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Predict the environment data model in the next month with the current environment data, the bio status, "
+                               "environment original changing regular pattern."
+                               "Keep irrelevant factors unchanged."
+                },
+                {
+                    "role": "user",
+                    "content": env_change_condition
+                },
+            ],
+            model=self.model_name,
+            response_format=EnvironmentModel
+        )
+
+        # change to json using pydantic
+        output_predict = response_predict.choices[0].message.parsed
+        output_json = output_predict.model_dump()
+
+        # store environment data
+        self.environment_memory.append(output_json)
+
+        return output_predict
 
 if __name__ == '__main__':
-    print(f'running workforce with model: {model_name}')
+    env_agent = EnvAgent()
+    import os
+    import asyncio
+    from simulator.utils import get_project_root
 
-    print(env_agent.step(
-        'The Great Lakes suffer as invasive zebra mussels rapidly multiply, outcompeting native species for food, '
-        'clogging water intake systems, and disrupting the aquatic ecosystem.',
-        response_format=EnvironmentModel
-    )
-    )
-
-    curr_history = env_agent.memory.get_context()
-    print(f'Current history: {curr_history}')
-
-    # change system prompt
-    env_agent.system_message = system_prompt_during_game
-
-    next_env = env_agent.step(
-        "Higher temperatures.",
+    case_path = os.path.join(
+        get_project_root(), 'data/cases.json'
     )
 
-    next_env = outliner_model.convert_pydantic(next_env.msgs[0].content, EnvironmentModel)
-    print(f'Next environment: {next_env}')
-    curr_history = env_agent.memory.get_context()
-    print(f'Current history: {curr_history}')
+    import json
+
+    with open(case_path, 'r', encoding='utf-8') as f:
+        cases = json.load(f)
+
+    cases = cases['cases_list']
+    import random
+
+    random_case = cases[random.randint(0, len(cases) - 1)]
+
+    output = env_agent.initialize_environment(
+        case_model=CaseModel(**random_case)
+    )
+
+    print(f'output: {output}')
+
+    # print the next month environment prediction async
+    loop = asyncio.get_event_loop()
+
+    output = loop.run_until_complete(
+        env_agent.predict_environment(
+            agent_status_list=[{
+                "bio_name": "fish",
+                "bio_num": 100,
+                "bio_density": 10,
+            }],
+            env_change_condition="The weather will be sunny and rainy.",
+        )
+    )
+
+
+
+
+    print(f'output: {output}')

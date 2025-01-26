@@ -2,12 +2,14 @@ import pygame
 import sys
 import json
 import numpy as np
+import threading
 
 from src.ui.inputdata import InputDataManager, truncate_text, wrap_text, handle_scroll
 from src.visual.visualization import InvasionSimulation, FCMVisualizer, EcologicalFCM
 from src.ui.feedback import draw_feedback_panel, handle_feedback_scroll, add_feedback
 from src.environment.conditions import GameConditions
 from src.ui.plotting import DensityPlotter
+from src.ui.input_interface import InputInterface
 
 
 
@@ -92,6 +94,87 @@ parameter_ranges = {
 # Initialize both FCM visualizers
 fcm_visualizer = FCMVisualizer()
 ecological_fcm = EcologicalFCM()
+
+def start_simulation(params):
+    global environment, game_started, input_interface
+    
+    # Initialize environment with parameters from input interface
+    environment = InvasionSimulation(
+        width=200,
+        height=200,
+        density_plotter=DensityPlotter(3)
+    )
+    
+    # Set initial parameters
+    environment.set_temperature(params["Temperature"])
+    environment.set_humidity(params["Humidity"])
+    environment.set_pollution_reduction(params["Pollution"])
+    
+    environment.initialize_random()
+    game_started = True
+    
+    # Start the pygame main loop
+    run_game()
+
+def run_game():
+    global running, environment
+    
+    running = True
+    clock = pygame.time.Clock()
+    last_update_time = pygame.time.get_ticks()
+    UPDATE_INTERVAL = 1000  # 1 second between updates
+
+    while running:
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Clear the screen
+        screen.fill(WHITE)
+        
+        # Draw game elements
+        draw_environment()
+        
+        # Draw FCM graphs
+        draw_game()
+        
+        # Draw game info below FCMs
+        draw_game_info()
+        
+        # Update and draw plot
+        if density_plotter and environment:
+            density_plotter.update(environment.grid)
+            density_plotter.render(screen, FEEDBACK_PANEL)
+        
+        # Periodic environment update
+        current_time = pygame.time.get_ticks()
+        if current_time - last_update_time > UPDATE_INTERVAL:
+            if environment is not None:
+                environment.update()
+                game_conditions.update()
+                
+                # Get current conditions and update environment weather
+                conditions = game_conditions.get_current_conditions()
+                environment.set_weather(conditions['weather'])
+            
+            last_update_time = current_time
+        
+        # Process events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            
+            handle_input_events(event)
+            
+            if game_started:
+                handle_feedback_scroll(event, font)
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Control frame rate
+        clock.tick(30)
+
+    pygame.quit()
+    sys.exit()
 
 def draw_environment():
     if environment is not None:
@@ -380,69 +463,7 @@ def draw_game_info():
         
         screen.blit(info_surface, INFO_PANEL)
 
-running = True
-clock = pygame.time.Clock()
-
-# Track time for periodic updates
-last_update_time = pygame.time.get_ticks()
-UPDATE_INTERVAL = 1000  # 1 second between updates
-
-while running:
-    mouse_pos = pygame.mouse.get_pos()
-    
-    # Clear the screen
-    screen.fill(WHITE)
-    
-    if not game_started:
-        # Draw start button when game hasn't started
-        draw_start_button(mouse_pos)
-    else:
-        # Draw chat interface
-        draw_chat_history()
-        draw_chat_input()
-        
-        # Draw game elements
-        draw_environment()
-        
-        # Draw FCM graphs
-        draw_game()
-        
-        # Draw game info below FCMs
-        draw_game_info()
-        
-        # Update and draw plot
-        if density_plotter and environment:
-            density_plotter.update(environment.grid)
-            density_plotter.render(screen, FEEDBACK_PANEL)
-        
-        # Periodic environment update
-        current_time = pygame.time.get_ticks()
-        if current_time - last_update_time > UPDATE_INTERVAL:
-            if environment is not None:
-                environment.update()
-                game_conditions.update()
-                
-                # Get current conditions and update environment weather
-                conditions = game_conditions.get_current_conditions()
-                environment.set_weather(conditions['weather'])
-            
-            last_update_time = current_time
-    
-    # Process events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        
-        handle_input_events(event)
-        
-        if game_started:
-            handle_feedback_scroll(event, font)
-    
-    # Update display
-    pygame.display.flip()
-    
-    # Control frame rate
-    clock.tick(30)
-
-pygame.quit()
-sys.exit()
+if __name__ == "__main__":
+    # Create and run input interface
+    input_interface = InputInterface(start_simulation)
+    input_interface.run()

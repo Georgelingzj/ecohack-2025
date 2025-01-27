@@ -4,59 +4,6 @@
 
 This project models ecosystem dynamics in real-time, simulating interactions among native, invasive, and endangered species. By combining cellular automata, fuzzy cognitive maps (FCM), and environmental parameter modeling, it provides an interactive platform for understanding species invasion and ecological balance.
 
----
-
-## Key Components
-
-### 1. **Simulation Engine** (`src/visualization.py`)
-
-- **Core Features**:
-  - Cellular automata grid to simulate ecosystems.
-  - Models species interactions, environmental conditions, recovery, and growth mechanisms.
-- **Visualization**:
-  - Real-time ecosystem state visualization.
-  - Displays relationships between environmental and species parameters.
-
----
-
-### 2. **Invasion Theories** (`src/invasion_theories.py`)
-
-- Implements key hypotheses to model invasion dynamics:
-  - **Enemy Release Hypothesis**
-  - **Evolution of Increased Competitive Ability**
-  - **Novel Weapons Hypothesis**
-  - **Empty Niche Hypothesis**
-- Customizable parameters for each model.
-
----
-
-### 3. **Data Visualization** (`src/plotting.py`)
-
-- Tools for tracking:
-  - Population changes over time.
-  - Species density.
-  - Environmental condition trends.
-
----
-
-### 4. **Environmental Modeling** (`src/conditions.py`)
-
-- Simulates:
-  - Weather patterns.
-  - Temporal environmental shifts.
-  - Dynamic environmental state management.
-
----
-
-### 5. **Interactive User Interface** (`demo.py`)
-
-- Features:
-  - Real-time parameter adjustment.
-  - Interactive multi-panel displays.
-  - Feedback system for ecosystem states.
-
----
-
 ## Planned Enhancements with LLM Integration
 
 ### 1. **Natural Language Input Processing**
@@ -114,8 +61,3 @@ This project models ecosystem dynamics in real-time, simulating interactions amo
 4. Develop a robust validation and data persistence framework.
 
 ---
-
-## Conclusion
-
-The EcoHack 2025 simulation system offers an engaging and modular approach to studying ecological invasions. Planned enhancements, including LLM integration, will enable greater realism, usability, and research applicability, making it a valuable tool for education and ecological research.
-```

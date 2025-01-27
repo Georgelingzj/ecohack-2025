@@ -1,5 +1,3 @@
-# Ecological Invasion Simulation Project
-
 ## Project Overview
 
 A real-time simulation system modeling the dynamics between native, invasive, and endangered species in an ecosystem. The project combines cellular automata, fuzzy cognitive maps (FCM), and environmental parameter modeling to create an interactive learning environment about species invasion dynamics.

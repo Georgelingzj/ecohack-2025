@@ -189,7 +189,7 @@ class InvasionSimulation:
         """Update with modified growth dynamics and recovery mechanism"""
         new_grid = self.grid.copy()
         
-        # Calculate current densities (as percentages)
+        # Calculate current densities
         total_cells = self.grid.size
         densities = {
             species: (np.sum(self.grid == species) / total_cells)
@@ -202,62 +202,66 @@ class InvasionSimulation:
             invasive_density=densities[2]
         )
         
-        # Update each cell
+        # Update each cell based on environmental conditions
         for y in range(self.height):
             for x in range(self.width):
                 current_species = self.grid[y, x]
                 
                 if current_species == 0:  # Empty cell
-                    # Calculate probabilities for each species to colonize
-                    native_prob = self.growth_rates[1] * self.count_neighbors(x, y, 1)
-                    invasive_prob = self.growth_rates[2] * self.count_neighbors(x, y, 2)
+                    # Calculate growth probabilities based on environmental conditions
+                    growth_probs = self.calculate_growth_probabilities(x, y, densities)
                     
-                    # Adjust probabilities based on competition
-                    native_prob *= (1 - invasive_pressure)  # Reduce native growth due to invasion
-                    
-                    # Determine which species grows here
-                    if random.random() < native_prob:
-                        new_grid[y, x] = 1
-                    elif random.random() < invasive_prob:
-                        new_grid[y, x] = 2
-                    
+                    # Apply growth based on probabilities
+                    rand_val = random.random()
+                    cumulative_prob = 0
+                    for species, prob in growth_probs.items():
+                        cumulative_prob += prob
+                        if rand_val < cumulative_prob:
+                            new_grid[y, x] = species
+                            break
+                            
                 else:  # Occupied cell
-                    # Calculate death probability
-                    base_death_rate = self.death_rates[current_species]
-                    
-                    if current_species == 1:  # Native species
-                        # Increase death rate based on invasive pressure
-                        death_prob = base_death_rate * (1 + invasive_pressure)
-                    else:  # Invasive species
-                        death_prob = base_death_rate
+                    # Calculate death probability based on conditions
+                    death_prob = self.calculate_death_chance(current_species)
                     
                     # Apply environmental stress
                     if not self.check_favorable_conditions(current_species):
-                        death_prob *= 1.5  # Increase death rate in unfavorable conditions
+                        death_prob *= 1.5
+                    
+                    # Apply competition pressure for native species
+                    if current_species == 1:  # Native species
+                        death_prob *= (1 + invasive_pressure)
                     
                     if random.random() < death_prob:
                         new_grid[y, x] = 0
         
-        # Recovery phase for low population species
-        for species in range(1, self.species_count + 1):
-            if densities[species] < self.min_population_threshold[species]:
-                if self.check_favorable_conditions(species):
-                    empty_cells = np.where(self.grid == 0)
-                    if len(empty_cells[0]) > 0:
-                        recovery_count = int(self.recovery_rates[species] * total_cells)
-                        recovery_count = max(recovery_count, int(0.02 * total_cells))
-                        
-                        for _ in range(min(recovery_count, len(empty_cells[0]))):
-                            idx = random.randint(0, len(empty_cells[0]) - 1)
-                            y, x = empty_cells[0][idx], empty_cells[1][idx]
-                            new_grid[y, x] = species
+        # Apply recovery mechanism
+        self.apply_recovery_mechanism(new_grid, densities)
         
         self.grid = new_grid
-
-        # Update the density plotter with the new grid state
+        
+        # Update the density plotter if available
         if self.density_plotter:
             self.density_plotter.update(self.grid)
     
+    def calculate_growth_probabilities(self, x, y, densities):
+        """Calculate growth probabilities for each species based on conditions"""
+        probs = {}
+        for species in range(1, self.species_count + 1):
+            base_rate = self.growth_rates[species]
+            neighbor_factor = self.count_neighbors(x, y, species) / 8.0
+            
+            # Adjust based on environmental conditions
+            env_factor = 1.0
+            if self.check_favorable_conditions(species):
+                env_factor = 1.2
+            else:
+                env_factor = 0.8
+            
+            probs[species] = base_rate * neighbor_factor * env_factor
+        
+        return probs
+
     def set_weather(self, weather):
         """Update the weather state"""
         self.current_weather = weather
@@ -267,20 +271,14 @@ class InvasionSimulation:
         self.update_environmental_parameters(pollution=reduction)
     
     def set_temperature(self, degrees):
-        """Set temperature in degrees (0-100)
-        0 = coldest
-        50 = neutral
-        100 = hottest
-        """
-        self.update_environmental_parameters(temperature=degrees)
+        """Set temperature in degrees (0-40)"""
+        self.temperature = max(0, min(40, degrees))
+        self.calculate_growth_parameters()
     
     def set_humidity(self, percentage):
-        """Set humidity percentage (0-100)
-        0 = driest
-        50 = neutral
-        100 = wettest
-        """
-        self.update_environmental_parameters(humidity=percentage)
+        """Set humidity percentage (0-100)"""
+        self.humidity = max(0, min(100, percentage))
+        self.calculate_growth_parameters()
     
     def set_environment(self, pollution=None, temperature=None, humidity=None):
         """Set multiple environmental parameters at once"""
@@ -458,16 +456,32 @@ class InvasionSimulation:
         
         return temp_favorable and humid_favorable and pollution_favorable
 
+    def apply_recovery_mechanism(self, new_grid, densities):
+        """Apply recovery mechanism based on densities"""
+        total_cells = self.grid.size
+        for species in range(1, self.species_count + 1):
+            if densities[species] < self.min_population_threshold[species]:
+                if self.check_favorable_conditions(species):
+                    empty_cells = np.where(self.grid == 0)
+                    if len(empty_cells[0]) > 0:
+                        recovery_count = int(self.recovery_rates[species] * total_cells)
+                        recovery_count = max(recovery_count, int(0.02 * total_cells))
+                        
+                        for _ in range(min(recovery_count, len(empty_cells[0]))):
+                            idx = random.randint(0, len(empty_cells[0]) - 1)
+                            y, x = empty_cells[0][idx], empty_cells[1][idx]
+                            new_grid[y, x] = species
+
 class FCMVisualizer:
     def __init__(self):
-        # Define nodes and their positions
+        # Adjust node positions for better spacing
         self.nodes = {
-            "Temperature": {"pos": (50, 50), "value": 20},
-            "Humidity": {"pos": (50, 150), "value": 50},
-            "Pollution": {"pos": (50, 250), "value": 0},
-            "Native": {"pos": (200, 100), "value": 50},
-            "Invasive": {"pos": (200, 200), "value": 20},
-            "Endangered": {"pos": (350, 150), "value": 5}
+            "Temperature": {"pos": (80, 80), "value": 20},
+            "Humidity": {"pos": (80, 200), "value": 50},
+            "Pollution": {"pos": (80, 320), "value": 0},
+            "Native": {"pos": (250, 140), "value": 50},
+            "Invasive": {"pos": (250, 260), "value": 20},
+            "Endangered": {"pos": (350, 200), "value": 5}
         }
         
         # Define edges and their weights
@@ -544,12 +558,12 @@ class FCMVisualizer:
             color = self.colors[name]
             
             # Draw node circle
-            pygame.draw.circle(fcm_surface, color, pos, 20)
+            pygame.draw.circle(fcm_surface, color, pos, 15)  # Reduced circle size
             
-            # Draw node label
-            font = pygame.font.SysFont(None, 20)
+            # Draw node label with offset
+            font = pygame.font.SysFont(None, 18)  # Smaller font
             label = font.render(f"{name}: {value:.1f}", True, (0, 0, 0))
-            label_pos = (pos[0] - label.get_width()//2, pos[1] + 25)
+            label_pos = (pos[0] - label.get_width()//2, pos[1] + 20)
             fcm_surface.blit(label, label_pos)
         
         # Blit FCM surface to main surface
@@ -557,14 +571,13 @@ class FCMVisualizer:
 
 class EcologicalFCM:
     def __init__(self):
-        # Define nodes and their positions for ecological relationships
         self.nodes = {
-            "Resource\nCompetition": {"pos": (50, 50), "value": 0.5},
-            "Predation": {"pos": (200, 50), "value": 0.3},
-            "Habitat\nModification": {"pos": (350, 50), "value": 0.6},
-            "Native\nBiodiversity": {"pos": (50, 150), "value": 0.7},
-            "Ecosystem\nStability": {"pos": (200, 150), "value": 0.8},
-            "Invasive\nDominance": {"pos": (350, 150), "value": 0.4}
+            "Resource\nCompetition": {"pos": (80, 80), "value": 0.5},
+            "Predation": {"pos": (250, 80), "value": 0.3},
+            "Habitat\nModification": {"pos": (350, 80), "value": 0.6},
+            "Native\nBiodiversity": {"pos": (80, 200), "value": 0.7},
+            "Ecosystem\nStability": {"pos": (250, 200), "value": 0.8},
+            "Invasive\nDominance": {"pos": (350, 200), "value": 0.4}
         }
         
         # Define ecological relationships

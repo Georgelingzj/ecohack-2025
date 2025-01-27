@@ -17,38 +17,6 @@ class Model4Use(Enum):
         return None
 
 
-# class CaseModel(BaseModel):
-#     scenario: str = Field(
-#         title="Scenario",
-#         description="The scenario of the case, "
-#                     "including the all relevant biological species involved, interactions, and environmental factors",
-#     )
-#
-#     summary: str = Field(
-#         title="Summary",
-#         description="Summarize the biology invasion case in one sentence.",
-#     )
-#
-#     mitigation_measures: str = Field(
-#         title="Mitigation Measures",
-#         description="The mitigation measures of the case. How to take the measure to alleviate or mitigate invasion ",
-#     )
-#
-#     experiment_condition: str = Field(
-#         title="Experiment Condition",
-#         description="The specific experimental setup, conditions.",
-#     )
-#
-#     evaluation_criteria: str = Field(
-#         title="Evaluation Criteria",
-#         description=" The metrics or criteria used to evaluate results to see whether the measure is effective or not.",
-#     )
-#
-#     weather_changing_description: str = Field(
-#         title="Weather Changing Description",
-#         description="The description of the weather changing in the location of the case across the whole year.",
-#     )
-
 class CaseModel(BaseModel):
     scenario: str = Field(
         title="Scenario",
@@ -109,6 +77,23 @@ class CaseModel(BaseModel):
     weather_changing_description: str = Field(
         title="Weather Changing Description",
         description="The description of the weather changing in the location of the case across the whole year.",
+    )
+
+    invasive_specie_growth_upper: float = Field(
+        title="Invasive Specie Growth Rate Upper Bound (Monthly)",
+        description="Upper bound of monthly growth rate for invasive species (%)"
+    )
+    invasive_specie_growth_lower: float = Field(
+        title="Invasive Specie Growth Rate Lower Bound (Monthly)",
+        description="Lower bound of monthly growth rate for invasive species (%)"
+    )
+    native_specie_decline_upper: float = Field(
+        title="Native Specie Decline Rate Upper Bound (Monthly)",
+        description="Upper bound of monthly decline rate for native species (%)"
+    )
+    native_specie_decline_lower: float = Field(
+        title="Native Specie Decline Rate Lower Bound (Monthly)",
+        description="Lower bound of monthly decline rate for native species (%)"
     )
 
 

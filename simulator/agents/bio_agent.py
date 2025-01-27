@@ -1,6 +1,6 @@
 from simulator.agents import BaseAgent
 
-from simulator.types import EnvironmentModel, BioModel
+from simulator.types import BioModel
 
 
 class BioAgent(BaseAgent):

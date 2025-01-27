@@ -6,21 +6,30 @@ import matplotlib.pyplot as plt
 
 from simulator.utils import get_project_root
 
-from simulator.types import EnvironmentModel, CaseModel
+from simulator.types import CaseModel
 
-case_path = os.path.join(
-    get_project_root(), 'data/cases_example.json'
-)
+# Load cases but don't process them yet
+case_path = os.path.join(get_project_root(), 'data/cases_example.json')
 with open(case_path, 'r', encoding='utf-8') as f:
     cases = json.load(f)
 
-cases = cases['cases_list']
-import random
-
-random_case = cases[random.randint(0, len(cases) - 1)]
-
-
-async def run_simulation(time_steps=10):
+async def run_simulation(time_steps=10, setting_id="setting-1"):
+    """
+    Run simulation with specified setting
+    
+    Args:
+        time_steps: Number of time steps to simulate
+        setting_id: ID of the case setting to use (e.g., "setting-1", "setting-2")
+    """
+    print("Starting simulation in simulator...")
+    
+    # Get the specific case data
+    if setting_id not in cases:
+        raise ValueError(f"Unknown setting ID: {setting_id}")
+    
+    case_data = cases[setting_id]
+    CASE = CaseModel(**case_data)
+    
     # Add tracking lists for plotting
     time_steps_x = []
     native_population = []
@@ -30,12 +39,7 @@ async def run_simulation(time_steps=10):
     print(f'initializing agents...')
 
     env_agent = EnvAgent()
-
-    CASE = CaseModel(**random_case)
-
-    env_model = env_agent.initialize_environment(
-        case_model=CASE
-    )
+    env_model = env_agent.initialize_environment(case_model=CASE)
 
     bio_agent_native = BioAgent()
     bio_agent_native.initialize_life(
@@ -56,6 +60,38 @@ async def run_simulation(time_steps=10):
     print(f'agents initialized.')
     print(f'starting simulation...')
 
+    # Get reference rates from case data
+    invasive_growth_upper = CASE.invasive_specie_growth_upper if hasattr(CASE, 'invasive_specie_growth_upper') else 25
+    invasive_growth_lower = CASE.invasive_specie_growth_lower if hasattr(CASE, 'invasive_specie_growth_lower') else 15
+    # Convert positive decline rates to negative for plotting
+    native_decline_upper = -abs(CASE.native_specie_decline_upper) if hasattr(CASE, 'native_specie_decline_upper') else -5
+    native_decline_lower = -abs(CASE.native_specie_decline_lower) if hasattr(CASE, 'native_specie_decline_lower') else -15
+
+    # Calculate average rates
+    invasive_avg_rate = (invasive_growth_upper + invasive_growth_lower) / 2
+    native_avg_rate = (native_decline_upper + native_decline_lower) / 2  # Will be negative
+
+    # Reference data points for 12 months
+    months = list(range(1, 13))
+    
+    # Reference data for Invasive species
+    invasive_ref_rate = [invasive_avg_rate] * 12
+    plt.plot(months, invasive_ref_rate, 'r--', linewidth=1.5, 
+             label=f'Reference: {CASE.invasive_specie_name} ({invasive_avg_rate}% monthly growth)')
+    
+    # Reference data for Native species (already negative)
+    native_ref_rate = [native_avg_rate] * 12
+    plt.plot(months, native_ref_rate, 'g--', linewidth=1.5, 
+             label=f'Reference: {CASE.native_specie_name} ({abs(native_avg_rate)}% monthly decline)')
+    
+    # Add shaded regions for reference ranges
+    plt.fill_between(months, [invasive_growth_lower]*12, [invasive_growth_upper]*12, 
+                    color='red', alpha=0.1, 
+                    label=f'Reference Range: {CASE.invasive_specie_name} ({invasive_growth_lower}-{invasive_growth_upper}%)')
+    plt.fill_between(months, [native_decline_lower]*12, [native_decline_upper]*12, 
+                    color='green', alpha=0.1, 
+                    label=f'Reference Range: {CASE.native_specie_name} ({abs(native_decline_upper)}-{abs(native_decline_lower)}% decline)')
+    
     # run for each time step
     for i in range(time_steps):
         time_steps_x.append(i + 1)
@@ -97,7 +133,7 @@ async def run_simulation(time_steps=10):
 
         # inject more favourable conditions for invasive species: Zebra Mussel
         if i == 6:
-            user_instruction = "Environment more favourable for invasive species (Zebra Mussels), suppress native species"
+            user_instruction = "Environment more favourable for invasive species, suppress native species"
 
             reasoning_tasks.append(
                 env_agent.predict_environment(
@@ -151,6 +187,18 @@ async def run_simulation(time_steps=10):
         native_population.append(bio_agent_native.life_memory[-1]['specie_num'])
         invasive_population.append(bio_agent_invasive.life_memory[-1]['specie_num'])
         
+        # After processing each step, yield the current state
+        current_state = {
+            'step': i,
+            'native_name': CASE.native_specie_name,
+            'invasive_name': CASE.invasive_specie_name,
+            'native_population': bio_agent_native.life_memory[-1]['specie_num'],
+            'invasive_population': bio_agent_invasive.life_memory[-1]['specie_num'],
+            'env_change': 1 if i == 6 else 0
+        }
+        print(f"Yielding step {i + 1} data")  # Debug print
+        yield current_state
+
         print("\n" + "="*30 + "\n")
 
     # Create plots after simulation
@@ -228,21 +276,21 @@ async def run_simulation(time_steps=10):
     # Create reference data points for 12 months
     months = list(range(1, 13))
     
-    # Reference data for Zebra Mussels (using average of 15-25%)
-    zebra_ref_rate = [20] * 12  # 20% monthly growth (average of 15-25%)
-    plt.plot(months, zebra_ref_rate, 'r--', linewidth=1.5, 
-             label='Reference: Zebra Mussel (20% monthly growth)')
+    # Reference data for Invasive species
+    plt.plot(months, invasive_ref_rate, 'r--', linewidth=1.5, 
+             label=f'Reference: {CASE.invasive_specie_name} ({invasive_avg_rate}% monthly growth)')
     
-    # Reference data for Native Mussels (using average of 5-15% decline)
-    native_ref_rate = [-10] * 12  # -10% monthly decline (average of 5-15%)
+    # Reference data for Native species (already negative)
     plt.plot(months, native_ref_rate, 'g--', linewidth=1.5, 
-             label='Reference: Native Mussel (10% monthly decline)')
+             label=f'Reference: {CASE.native_specie_name} ({abs(native_avg_rate)}% monthly decline)')
     
     # Add shaded regions for reference ranges
-    plt.fill_between(months, [15]*12, [25]*12, color='red', alpha=0.1, 
-                    label='Reference Range: Zebra Mussel (15-25%)')
-    plt.fill_between(months, [-15]*12, [-5]*12, color='green', alpha=0.1, 
-                    label='Reference Range: Native Mussel (5-15% decline)')
+    plt.fill_between(months, [invasive_growth_lower]*12, [invasive_growth_upper]*12, 
+                    color='red', alpha=0.1, 
+                    label=f'Reference Range: {CASE.invasive_specie_name} ({invasive_growth_lower}-{invasive_growth_upper}%)')
+    plt.fill_between(months, [native_decline_lower]*12, [native_decline_upper]*12, 
+                    color='green', alpha=0.1, 
+                    label=f'Reference Range: {CASE.native_specie_name} ({abs(native_decline_upper)}-{abs(native_decline_lower)}% decline)')
     
     # Add vertical line for environmental change
     for i, change in enumerate(env_changes[1:], 1):
@@ -271,5 +319,10 @@ async def run_simulation(time_steps=10):
 
 if __name__ == '__main__':
     print(f'Initializing environment...')
-    asyncio.run(run_simulation())
+    
+    async def main():
+        async for step in run_simulation():
+            print(f"Step {step['step'] + 1}: Processing...")
+    
+    asyncio.run(main())
     print(f'Simulation finished.')

@@ -1,2 +1,6 @@
-pygame
-json
+gradio==5.13.1
+matplotlib==3.10.0
+openai==1.60.2
+pydantic==2.10.6
+pypdf==5.2.0
+python-dotenv==1.0.1

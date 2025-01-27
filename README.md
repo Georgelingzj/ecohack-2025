@@ -1,4 +1,3 @@
-```markdown
 # EcoHack 2025: Ecological Invasion Simulation System
 
 ## Overview

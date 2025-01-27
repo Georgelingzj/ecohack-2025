@@ -1,5 +1,7 @@
 # 🎮 A Simulator for Biology Invasion Studies (EcoHack 2025 - Team BioSim)
 
+![BioSim Framework](assets/figure-ecohack.png)
+
 ## 📚 About
 BioSim is an **LLM-based multi-agent framework** designed to simulate biological invasions. This framework helps researchers model and analyze the impact of invasive species on native ecosystems using adaptive AI-driven agents. Our system integrates **large language models (LLMs)** with ecological modeling to provide a scalable, flexible, and data-driven simulation approach.
 

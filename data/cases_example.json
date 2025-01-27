@@ -1,0 +1,42 @@
+{
+    "setting-1": 
+        {
+            "scenario": "In the Great Lakes of North America, the introduction of invasive zebra mussels (Dreissena polymorpha) has threatened native fish populations, disrupted local ecosystems, and damaged water infrastructure.",
+            "invasive_specie_name": "Zebra Mussel (Dreissena polymorpha)",
+            "invasive_specie_initial_number": 100,
+            "invasive_specie_initial_density": 10,
+            "native_specie_name": "Native Freshwater Mussels",
+            "native_specie_initial_number": 10000,
+            "native_specie_initial_density": 10,
+            "summary": "Zebra mussels rapidly multiply in the Great Lakes, displacing native freshwater species and clogging water systems.",
+            "mitigation_measures": "Installation of rapid response cleaning systems to remove mussels from water intake pipes and promotion of public awareness campaigns to prevent transfer between water bodies.",
+            "experiment_condition": "Controlled studies in lake areas with varied mussel densities, monitoring over time for species population dynamics and infrastructure impact.",
+            "evaluation_criteria": "Metrics included changes in native species numbers, reduction in zebra mussel population post-mitigation activities, and measurement of lower economic impact due to reduced pipe clogging.",
+            "weather_changing_description": "Seasonal weather changes noted in the Great Lakes region, with cold winters slowing down invasive species growth and warm summers perfect for rapid proliferation.",
+            "invasive_specie_growth_upper": "25",
+            "invasive_specie_growth_lower": "15",
+            "native_specie_decline_upper": "15",
+            "native_specie_decline_lower": "5"
+    },
+    "setting-2": {
+        "scenario": "In the wetlands of northern Australia, invasive cane toads (Rhinella marina) have caused drastic declines in native predator populations, disrupted food chains, and reduced biodiversity through their toxic secretions.",
+        "invasive_specie_name": "Cane Toad (Rhinella marina)",
+        "invasive_specie_initial_number": 500,
+        "invasive_specie_initial_density": 5,
+        "native_specie_name": "Northern Quoll (Dasyurus hallucatus)",
+        "native_specie_initial_number": 1000,
+        "native_specie_initial_density": 10,
+        "summary": "Cane toads rapidly spread across Australian wetlands, poisoning native predators like quolls and lizards that mistake them for prey.",
+        "mitigation_measures": "Deployment of toad-proof fencing around critical habitats, community-led 'toad busting' removal events, and training programs to condition native predators to avoid toads.",
+        "experiment_condition": "Comparison of fenced vs. unfenced wetland zones, with GPS tracking of quolls and monthly surveys of toad density and predator mortality rates.",
+        "evaluation_criteria": "Metrics include quoll population recovery, reduction in toad density, frequency of predator poisoning incidents, and biodiversity rebound in controlled zones.",
+        "weather_changing_description": "Monsoon rains accelerate toad dispersal and breeding, while prolonged dry seasons increase juvenile toad mortality but stress native species reliant on wetlands.",
+        
+        "invasive_specie_growth_upper": "12",
+        "invasive_specie_growth_lower": "4",
+        "native_specie_decline_upper": "8",
+        "native_specie_decline_lower": "1"
+        
+    }
+    
+}
